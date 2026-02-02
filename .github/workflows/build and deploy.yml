@@ -57,3 +57,10 @@ jobs:
         AMI_ID=$(jq -r '.builds[0].artifact_id' manifest.json | cut -d: -f2)
         echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
 
+    - name: Deploy new AMI
+      run: |
+        aws cloudformation deploy \
+          --template-file cloudformation/app-stack.yml \
+          --stack-name schedemy \
+          --parameter-overrides AmiId=${AMI_ID} \
+          --capabilities CAPABILITY_NAMED_IAM
