@@ -1,5 +1,5 @@
 ---
-- name: Setup Secure Spring Boot Environment
+- name: Setup Spring Boot Environment
   hosts: all
   become: yes
 
