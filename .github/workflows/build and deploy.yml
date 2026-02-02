@@ -51,3 +51,9 @@ jobs:
           -var "jar_s3_key=${APP_NAME}/${JAR_NAME}" \
           -var "app_version=${GITHUB_SHA}" \
           packer/app.pkr.hcl
+
+    - name: Export AMI ID
+      run: |
+        AMI_ID=$(jq -r '.builds[0].artifact_id' manifest.json | cut -d: -f2)
+        echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
+
