@@ -1,37 +1,60 @@
-- hosts: all
+---
+- name: Setup Secure Spring Boot Environment
+  hosts: all
   become: yes
-  vars:
-    app_dir: /opt/schedemy
-    app_user: deploy
-    app_group: deploy
-    
+
   tasks:
-    - name: Install Java
-      dnf:
+    - name: install java
+      apt:
         name: java-17-amazon-corretto
         state: present
+        update_cache: yes
 
-    - name: Create app user
+    # 1. Create the 'deploy' group
+    - name: Ensure group "deploy" exists
+      group:
+        name: deploy
+        state: present
+
+    # 2. Create the 'deploy' user and add to 'deploy' and 'sudo' groups
+    - name: Create deploy user
       user:
-        name: "{{ app_user }}"
-        system: yes
-        shell: /sbin/nologin
+        name: deploy
+        group: deploy
+        groups: sudo
+        append: yes
+        shell: /bin/bash
+        state: present
 
-    - name: Create app directory
+    # 3. Give 'deploy' user administrative (sudo) privileges without password
+    - name: Allow 'deploy' user to have passwordless sudo
+      lineinfile:
+        path: /etc/sudoers.d/deploy
+        line: 'deploy ALL=(ALL) NOPASSWD:ALL'
+        state: present
+        create: yes
+        mode: '0440'
+        validate: '/usr/sbin/visudo -cf %s'
+
+    # 4. Create directory and set ownership to deploy:deploy
+    - name: Create app directory and set ownership
       file:
-        path: "{{ app_dir }}"
+        path: /opt/schedemy
         state: directory
-        owner: "{{ app_user }}"
-        group: "{{ app_user }}"
+        owner: deploy
+        group: deploy
+        mode: '0755'
 
-    - name: Download JAR from S3
-      amazon.aws.aws_s3:
-        bucket: "{{ jar_s3_bucket }}"
-        object: "{{ jar_s3_key }}"
-        dest: "{{ app_dir }}/app.jar"
-        mode: get
+    - name: Copy JAR file
+      copy:
+        src: "../target/app.jar"
+        dest: "/opt/schedemy/app.jar"
+        owner: deploy
+        group: deploy
+        mode: '0500' # Read/Execute only for owner (more secure)
 
-    - name: Install systemd service
+    # 5. Setup Systemd Service to run as 'deploy' user
+    - name: Create Systemd Service
       copy:
         dest: /etc/systemd/system/schedemy.service
         content: |
@@ -40,17 +63,18 @@
           After=network.target
 
           [Service]
-          User={{ app_user }}
-          Group={{ app_group }}
-          ExecStart=/usr/bin/java -jar {{ app_dir }}/app.jar
+          User=deploy
+          Group=deploy
+          WorkingDirectory=/opt/schedemy
+          ExecStart=/usr/bin/java -jar /opt/schedemy/app.jar
           SuccessExitStatus=143
-          RestartSec=10
           Restart=always
 
           [Install]
           WantedBy=multi-user.target
 
-    - name: Enable service (do not start)
+    - name: Enable and Start Service
       systemd:
         name: schedemy
         enabled: yes
+        state: started
