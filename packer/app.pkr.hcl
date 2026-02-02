@@ -1,46 +1,45 @@
+packer {
+  required_plugins {
+    amazon = {
+      version = ">= 1.2.8"
+      source  = "github.com/hashicorp/amazon"
+    }
+    ansible = {
+      version = ">= 1.1.0"
+      source  = "github.com/hashicorp/ansible"
+    }
+  }
+}
+
 variable "aws_region" {
-  default = "us-east-1"
+  type    = string
+  default = "us-east-1" 
 }
-variable "jar_s3_bucket" {
-  default = "schedemy-bucket"
-}
-variable "jar_s3_key" {
-  default = "schedemy/schedemy-commitsha.jar
-}
-variable "app_version" {}
 
-source "amazon-ebs" "app" {
-  region              = var.aws_region
-  instance_type       = "t3.small"
-  ssh_username        = "deploy"
-  ami_name            = "schedemy-${var.app_version}"
-  ami_description     = "Spring Boot AMI built from commit ${var.app_version}"
-  iam_instance_profile = "PackerEC2Role"
-
+source "amazon-ebs" "ubuntu" {
+  ami_name      = "schedemy-app-{{timestamp}}"
+  instance_type = "t3.small"
+  region        = var.aws_region
+  
+  # Find the base Ubuntu 22.04 image to start from
   source_ami_filter {
     filters = {
-      name                = "al2023-ami-*-x86_64"
+      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
     }
-    owners      = ["amazon"]
     most_recent = true
+    owners      = ["099720109477"] # Canonical (Official Ubuntu)
   }
+  ssh_username = "ubuntu"
 }
 
 build {
-  sources = ["source.amazon-ebs.app"]
+  name    = "schedemy-builder"
+  sources = ["source.amazon-ebs.ubuntu"]
 
+  # Run Ansible to install software
   provisioner "ansible" {
-    playbook_file = "ansible/playbook.yml"
-    extra_arguments = [
-      "--extra-vars",
-      "jar_s3_bucket=${var.jar_s3_bucket} jar_s3_key=${var.jar_s3_key}"
-    ]
-  }
-
-  post-processor "manifest" {
-    output = "manifest.json"
+    playbook_file = "./.ansible/playbook.yml"
   }
 }
-
