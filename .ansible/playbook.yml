@@ -77,4 +77,3 @@
       systemd:
         name: schedemy
         enabled: yes
-        state: started
