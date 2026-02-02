@@ -1,14 +1,21 @@
-variable "aws_region" {}
-variable "jar_s3_bucket" {}
-variable "jar_s3_key" {}
+variable "aws_region" {
+  default = "us-east-1"
+}
+variable "jar_s3_bucket" {
+  default = "schedemy-bucket"
+}
+variable "jar_s3_key" {
+  default = "schedemy/schedemy-commitsha.jar
+}
 variable "app_version" {}
 
 source "amazon-ebs" "app" {
   region              = var.aws_region
   instance_type       = "t3.small"
-  ssh_username        = "ec2-user"
+  ssh_username        = "deploy"
   ami_name            = "schedemy-${var.app_version}"
   ami_description     = "Spring Boot AMI built from commit ${var.app_version}"
+  iam_instance_profile = "PackerEC2Role"
 
   source_ami_filter {
     filters = {
@@ -36,3 +43,4 @@ build {
     output = "manifest.json"
   }
 }
+
