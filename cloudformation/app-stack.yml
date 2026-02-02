@@ -1,0 +1,32 @@
+Parameters:
+  AmiId:
+    Type: AWS::EC2::Image::Id
+
+Resources:
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        ImageId: !Ref AmiId
+        InstanceType: t3.small
+        SecurityGroupIds:
+          - sg-0c8a5696248221b71
+        IamInstanceProfile:
+          Name: schedemy-instance-role
+
+  AppASG:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      DesiredCapacity: 2
+      MaxSize: 4
+      MinSize: 2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
+      VPCZoneIdentifier:
+        - subnet-aaa
+        - subnet-bbb
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MinInstancesInService: 1
+        MaxBatchSize: 1
