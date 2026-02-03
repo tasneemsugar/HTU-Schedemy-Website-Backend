@@ -46,6 +46,11 @@ build {
   # Run Ansible to install software
   provisioner "ansible" {
     playbook_file = "./.ansible/playbooks/playbook0.yml"
+	user		  = "ubuntu"
+
+	extra_arguments = [
+      "--extra-vars", "project_root=${path.cwd}"
+  ]
   }
   # THIS ADDS THE JSON MANIFEST
   post-processor "manifest" {
