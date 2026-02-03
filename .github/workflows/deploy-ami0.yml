@@ -61,14 +61,14 @@ jobs:
       - name: Refresh ASG
         env:
             ASG_NAME: "schedemy01-ASG"
-            NEW_AMI_ID: ${{ env.AMI_ID }}
+            
             LT_NAME: "schedemy01-template"
         run: |
-          echo "Updating ASG $ASG_NAME with new AMI: $NEW_AMI"
+          echo "Updating ASG $ASG_NAME with new AMI: $AMI_ID"
           
           # Check if the ID is empty before proceeding
-          if [ -z "$NEW_AMI_ID" ]; then
-            echo "Error: NEW_AMI_ID is empty. The Packer build step failed to export it."
+          if [ -z "$AMI_ID" ]; then
+            echo "Error: AMI_ID is empty."
             exit 1
           fi
          
@@ -76,8 +76,8 @@ jobs:
     
           aws ec2 create-launch-template-version \
             --launch-template-name $LT_NAME \
-            --source-version '$Latest' \
-            --launch-template-data "{\"ImageId\":\"$NEW_AMI\"}"
+            --source-version "\$Latest" \
+            --launch-template-data "{\"ImageId\":\"$AMI_ID\"}"
 
           # 2. Tell ASG to start an Instance Refresh
           # This slowly replaces instances. MinHealthyPercentage=50 means at least half stay up.
