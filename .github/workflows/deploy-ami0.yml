@@ -50,6 +50,9 @@ jobs:
       - name: Build AMI
         id: build-image
         run: |
+          # Run Packer build and create a manifest file
+          packer build -machine-readable ./Packer/build.pkr.hcl -color=false -on-error=abort | tee build.log
+          
           # Use jq to grab the ID from the file Packer just created
           
           AMI_ID=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
