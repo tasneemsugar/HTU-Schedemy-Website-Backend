@@ -16,8 +16,8 @@ variable "aws_region" {
   default = "us-east-1"
 }
 
-source "amazon-ebs" "ubuntu" {
-  ami_name      = "schedemy-app-{{timestamp}}"
+source "amazon-ebs" "amazon_linux" {
+  ami_name      = "schedemy-al2023-{{timestamp}}"
   ami_description = "Schedemy Spring Boot immutable image"
   instance_type = "t3.small"
   region        = var.aws_region
@@ -26,17 +26,17 @@ source "amazon-ebs" "ubuntu" {
     App = "schedemy"
     BuiltBy = "packer"}
 
-  # Find the base Ubuntu 22.04 image to start from
+ 
   source_ami_filter {
     filters = {
-      name                = "ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"
+      name                = "al2023-ami-2023*-x86_64"
       root-device-type    = "ebs"
       virtualization-type = "hvm"
     }
     most_recent = true
-    owners      = ["099720109477"] # Canonical (Official Ubuntu)
+    owners      = ["137112412989"] 
   }
-  ssh_username = "ubuntu"
+  ssh_username = "ec2-user"
 }
 
 build {
@@ -46,7 +46,7 @@ build {
   # Run Ansible to install software
   provisioner "ansible" {
     playbook_file = "./.ansible/playbooks/playbook0.yml"
-	user		  = "ubuntu"
+	user		  = "ec2-user"
 
 	extra_arguments = [
       "--extra-vars", "project_root=${path.cwd}"
