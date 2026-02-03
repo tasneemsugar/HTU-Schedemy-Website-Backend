@@ -41,7 +41,7 @@ source "amazon-ebs" "amazon_linux" {
 
 build {
   name    = "schedemy-builder"
-  sources = ["source.amazon-ebs.ubuntu"]
+  sources = ["source.amazon-ebs.amazon_linux"]
 
   # Run Ansible to install software
   provisioner "ansible" {
