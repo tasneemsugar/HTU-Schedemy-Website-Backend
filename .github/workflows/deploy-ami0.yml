@@ -28,7 +28,10 @@ jobs:
 
       - name: Rename JAR (for consistency with Ansible)
         run: mv target/EduSched-0.0.1-SNAPSHOT.jar target/app.jar
-
+  
+      - name: Verify JAR location
+        run: ls -l target/app.jar
+      
       # 3. Setup AWS Credentials
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
