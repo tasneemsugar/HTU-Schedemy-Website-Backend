@@ -50,9 +50,10 @@ jobs:
       - name: Build AMI
         id: build-image
         run: |
-          # This runs Packer and grabs the AMI ID from the last line of output
-          packer build -machine-readable ./packer/build.pkr.hcl | tee build.log
-          AMI_ID=$(grep 'artifact,0,id' build.log | cut -d: -f2)
+          # Use jq to grab the ID from the file Packer just created
+          
+          AMI_ID=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
+          
           echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
           echo "Created AMI: $AMI_ID"
 
