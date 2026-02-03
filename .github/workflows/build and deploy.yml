@@ -1,77 +1,59 @@
-name: Deploy Immutable AMI
+name: Build AMI and Deploy
+
 on:
-  workflow_dispatch:
-  #push:
-    #branches: ["main"]
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: schedemy-bucket
+  APP_NAME: schedemy
 
 jobs:
-  build-and-deploy:
+  build-ami:
     runs-on: ubuntu-latest
+
     permissions:
       id-token: write
       contents: read
 
     steps:
-      # 1. Checkout Code
-      - name: Checkout Code
-        uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-      # 2. Build Java App
-      - name: Set Up Java 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
 
-      - name: Build with Maven
-        run: mvn -B -DskipTests package
+    - name: Build JAR
+      run: mvn clean package -DskipTests
 
-      - name: Rename JAR (for consistency with Ansible)
-        run: mv target/*.jar target/app.jar
+    - name: Configure AWS credentials (OIDC)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::123456789012:role/github-ci-role
+        aws-region: ${{ env.AWS_REGION }}
 
-      # 3. Setup AWS Credentials
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+    - name: Upload JAR to S3
+      run: |
+        JAR_NAME=${APP_NAME}-${GITHUB_SHA}.jar
+        aws s3 cp target/*.jar s3://${S3_BUCKET}/${APP_NAME}/${JAR_NAME}
+        echo "JAR_NAME=$JAR_NAME" >> $GITHUB_ENV
 
-      # 4. Initialize Packer
-      - name: Setup Packer
-        uses: hashicorp/setup-packer@main
-        with:
-          version: "latest"
+    - name: Build AMI with Packer
+      run: |
+        packer init packer/
+        packer build \
+          -var "aws_region=${AWS_REGION}" \
+          -var "jar_s3_bucket=${S3_BUCKET}" \
+          -var "jar_s3_key=${APP_NAME}/${JAR_NAME}" \
+          -var "app_version=${GITHUB_SHA}" \
+          packer/app.pkr.hcl
 
-      - name: Packer Init
-        run: packer init ./packer/build.pkr.hcl
+    - name: Export AMI ID
+      run: |
+        AMI_ID=$(jq -r '.builds[0].artifact_id' manifest.json | cut -d: -f2)
+        echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
 
-      # 5. Build AMI
-      - name: Build AMI
-        id: build-image
-        run: |
-          # This runs Packer and grabs the AMI ID from the last line of output
-          packer build -machine-readable ./packer/build.pkr.hcl | tee build.log
-          AMI_ID=$(grep 'artifact,0,id' build.log | cut -d: -f2)
-          echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
-          echo "Created AMI: $AMI_ID"
-
-      # 6. Update ASG (The Zero Downtime Deployment)
-      - name: Refresh ASG
-        env:
-            ASG_NAME: "schedemy01-ASG"
-        run: |
-          echo "Updating ASG $ASG_NAME with new AMI: ${{ env.AMI_ID }}"
-          
-          # 1. Create a new Launch Template Version with the new AMI
-          
-          aws ec2 create-launch-template-version \
-            --launch-template-name schedemy01-template \
-            --source-version '$Latest' \
-            --launch-template-data "{\"ImageId\":\"${{ env.AMI_ID }}\"}"
-
-          # 2. Tell ASG to start an Instance Refresh
-          # This slowly replaces instances. MinHealthyPercentage=50 means at least half stay up.
-          aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name $ASG_NAME \
-            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 60}'
