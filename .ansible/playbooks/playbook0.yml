@@ -27,7 +27,7 @@
 
     - name: Copy JAR file
       copy:
-        src: "../target/app.jar"
+        src: "{{ project_root }}/target/app.jar"
         dest: "/opt/schedemy/app.jar"
         owner: deploy
         group: deploy
