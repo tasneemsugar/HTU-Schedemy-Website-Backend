@@ -44,7 +44,7 @@ jobs:
           version: "latest"
 
       - name: Packer Init
-        run: packer init ./packer/build.pkr.hcl
+        run: packer init ./Packer/build.pkr.hcl
 
       # 5. Build AMI
       - name: Build AMI
