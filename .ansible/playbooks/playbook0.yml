@@ -6,7 +6,7 @@
 
   tasks:
     - name: Install Amazon Corretto 17 (Java)
-      apt:
+      dnf:
         name: java-17-amazon-corretto-devel
         state: present
         
