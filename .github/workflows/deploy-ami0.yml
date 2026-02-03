@@ -1,0 +1,77 @@
+name: Deploy Immutable AMI
+on:
+  workflow_dispatch: 
+  #push:
+    #branches: ["main"]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # 1. Checkout Code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Build Java App
+      - name: Set Up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build with Maven
+        run: mvn -B -DskipTests package
+
+      - name: Rename JAR (for consistency with Ansible)
+        run: mv target/*.jar target/app.jar
+
+      # 3. Setup AWS Credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      # 4. Initialize Packer
+      - name: Setup Packer
+        uses: hashicorp/setup-packer@main
+        with:
+          version: "latest"
+
+      - name: Packer Init
+        run: packer init ./packer/build.pkr.hcl
+
+      # 5. Build AMI
+      - name: Build AMI
+        id: build-image
+        run: |
+          # This runs Packer and grabs the AMI ID from the last line of output
+          packer build -machine-readable ./packer/build.pkr.hcl | tee build.log
+          AMI_ID=$(grep 'artifact,0,id' build.log | cut -d: -f2)
+          echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
+          echo "Created AMI: $AMI_ID"
+
+      # 6. Update ASG (The Zero Downtime Deployment)
+      - name: Refresh ASG
+        env:
+            ASG_NAME: "schedemy01-ASG"
+        run: |
+          echo "Updating ASG $ASG_NAME with new AMI: ${{ env.AMI_ID }}"
+          
+          # 1. Create a new Launch Template Version with the new AMI
+    
+          aws ec2 create-launch-template-version \
+            --launch-template-name schedemy01-template \
+            --source-version '$Latest' \
+            --launch-template-data "{\"ImageId\":\"${{ env.AMI_ID }}\"}"
+
+          # 2. Tell ASG to start an Instance Refresh
+          # This slowly replaces instances. MinHealthyPercentage=50 means at least half stay up.
+          aws autoscaling start-instance-refresh \
+            --auto-scaling-group-name $ASG_NAME \
+            --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 60}'
