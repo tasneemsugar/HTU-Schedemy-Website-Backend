@@ -47,5 +47,9 @@ build {
   provisioner "ansible" {
     playbook_file = "./.ansible/playbooks/playbook0.yml"
   }
-
+  # THIS ADDS THE JSON MANIFEST
+  post-processor "manifest" {
+    output     = "manifest.json"
+    strip_path = true
+  }
 }
