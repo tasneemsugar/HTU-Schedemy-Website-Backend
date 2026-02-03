@@ -50,27 +50,26 @@ jobs:
       - name: Build AMI
         id: build-image
         run: |
-          # Run Packer build and create a manifest file
-          packer build -machine-readable ./Packer/build.pkr.hcl -color=false -on-error=abort | tee build.log
+          packer build ./Packer/build.pkr.hcl
           
           # Use jq to grab the ID from the file Packer just created
           
           AMI_ID=$(jq -r '.builds[-1].artifact_id' manifest.json | cut -d: -f2)
           
-          echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
+          echo "AMI_ID=$AMI_ID" >> $GITHUB_OUTPUT
           echo "Created AMI: $AMI_ID"
 
       # 6. Update ASG (The Zero Downtime Deployment)
       - name: Refresh ASG
         env:
             ASG_NAME: "schedemy01-ASG"
-            
+            NEW_AMI: ${{ steps.build-image.outputs.ami_id }}
             LT_NAME: "schedemy01-template"
         run: |
-          echo "Updating ASG $ASG_NAME with new AMI: $AMI_ID"
+          echo "Updating ASG $ASG_NAME with new AMI: $NEW_AMI"
           
           # Check if the ID is empty before proceeding
-          if [ -z "$AMI_ID" ]; then
+          if [ -z "$NEW_AMI" ]; then
             echo "Error: AMI_ID is empty."
             exit 1
           fi
@@ -80,7 +79,7 @@ jobs:
           aws ec2 create-launch-template-version \
             --launch-template-name $LT_NAME \
             --source-version "\$Latest" \
-            --launch-template-data "{\"ImageId\":\"$AMI_ID\"}"
+            --launch-template-data "{\"ImageId\":\"$NEW_AMI\"}"
 
           # 2. Tell ASG to start an Instance Refresh
           # This slowly replaces instances. MinHealthyPercentage=50 means at least half stay up.
