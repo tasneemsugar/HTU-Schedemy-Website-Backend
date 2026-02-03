@@ -1,0 +1,59 @@
+name: Build AMI and Deploy
+
+on:
+  push:
+    branches: [ "main" ]
+
+env:
+  AWS_REGION: us-east-1
+  S3_BUCKET: schedemy-bucket
+  APP_NAME: schedemy
+
+jobs:
+  build-ami:
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: 17
+
+    - name: Build JAR
+      run: mvn clean package -DskipTests
+
+    - name: Configure AWS credentials (OIDC)
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::123456789012:role/github-ci-role
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Upload JAR to S3
+      run: |
+        JAR_NAME=${APP_NAME}-${GITHUB_SHA}.jar
+        aws s3 cp target/*.jar s3://${S3_BUCKET}/${APP_NAME}/${JAR_NAME}
+        echo "JAR_NAME=$JAR_NAME" >> $GITHUB_ENV
+
+    - name: Build AMI with Packer
+      run: |
+        packer init packer/
+        packer build \
+          -var "aws_region=${AWS_REGION}" \
+          -var "jar_s3_bucket=${S3_BUCKET}" \
+          -var "jar_s3_key=${APP_NAME}/${JAR_NAME}" \
+          -var "app_version=${GITHUB_SHA}" \
+          packer/app.pkr.hcl
+
+    - name: Export AMI ID
+      run: |
+        AMI_ID=$(jq -r '.builds[0].artifact_id' manifest.json | cut -d: -f2)
+        echo "AMI_ID=$AMI_ID" >> $GITHUB_ENV
+
