@@ -89,3 +89,12 @@ jobs:
           aws autoscaling start-instance-refresh \
             --auto-scaling-group-name $ASG_NAME \
             --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 60}'
+    
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          #exit-code: '1'  # This fails the build if a CRITICAL issue is found
+          severity: 'CRITICAL,HIGH'
