@@ -33,7 +33,7 @@ jobs:
           scan-type: 'fs'
           scan-ref: 'target/'
           ignore-unfixed: true
-          format: 'jason'
+          format: 'json'
           output: 'trivy-fs-report.json'
           #exit-code: '1'  # This fails the build if a CRITICAL issue is found
           severity: 'CRITICAL'
