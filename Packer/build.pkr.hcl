@@ -52,6 +52,22 @@ build {
       "--extra-vars", "project_root=${path.cwd}"
   ]
   }
+
+ # FINAL CLEANUP (Fixes the Trivy HIGH finding)
+  provisioner "shell" {
+    inline = [
+      "echo 'Cleaning up image...'",
+      # Remove SSH host keys (Trivy found these)
+      "sudo rm -f /etc/ssh/ssh_host_*",
+      # Clear machine ID to ensure it's unique on next boot
+      "sudo truncate -s 0 /etc/machine-id",
+      # Remove shell history so your commands aren't baked in
+      "rm -f ~/.bash_history",
+      "history -c",
+      # Clear cloud-init cache to prevent networking issues on new instances
+      "sudo rm -rf /var/lib/cloud/instances/*"
+    ]
+  }
   # THIS ADDS THE JSON MANIFEST
   post-processor "manifest" {
     output     = "manifest.json"
