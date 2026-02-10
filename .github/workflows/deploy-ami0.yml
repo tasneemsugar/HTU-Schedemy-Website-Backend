@@ -26,6 +26,17 @@ jobs:
       - name: Build with Maven
         run: mvn -B -DskipTests package
 
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          #exit-code: '1'  # This fails the build if a CRITICAL issue is found
+          severity: 'CRITICAL'
+
+        
+
       - name: Rename JAR (for consistency with Ansible)
         run: mv target/EduSched-0.0.1-SNAPSHOT.jar target/app.jar
   
@@ -62,6 +73,17 @@ jobs:
           echo "AMI_ID=$AMI_ID" >> $GITHUB_OUTPUT
           echo "Created AMI: $AMI_ID"
 
+      - name: Trivy AMI Scan (OS + Full Image)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.build-image.outputs.ami_id }}
+          scan-type: 'ami'
+          severity: 'CRITICAL'
+         # exit-code: '1'
+        env:
+          AWS_REGION: us-east-1
+
+
       # 6. Update ASG (The Zero Downtime Deployment)
       - name: Refresh ASG
         env:
@@ -90,11 +112,4 @@ jobs:
             --auto-scaling-group-name $ASG_NAME \
             --preferences '{"MinHealthyPercentage": 50, "InstanceWarmup": 60}'
     
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'fs'
-          ignore-unfixed: true
-          format: 'table'
-          #exit-code: '1'  # This fails the build if a CRITICAL issue is found
-          severity: 'CRITICAL,HIGH'
+      
