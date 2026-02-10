@@ -82,7 +82,6 @@ jobs:
         with:
           image-ref: 'ami:${{ steps.build-image.outputs.ami_id }}'
           scan-type: 'image'
-          image-src: 'aws'
           severity: 'CRITICAL'
           format: 'table'
           output: 'trivy-ami-report.json'
