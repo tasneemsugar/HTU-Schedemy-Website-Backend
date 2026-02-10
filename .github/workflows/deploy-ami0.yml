@@ -80,7 +80,7 @@ jobs:
       - name: Trivy AMI Scan (OS + Full Image)
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ steps.build-image.outputs.ami_id }}
+          image-ref: 'ami:${{ steps.build-image.outputs.ami_id }}'
           scan-type: 'image'
           image-src: 'aws'
           severity: 'CRITICAL'
