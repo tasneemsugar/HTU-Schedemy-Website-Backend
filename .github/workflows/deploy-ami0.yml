@@ -33,7 +33,7 @@ jobs:
           scan-type: 'fs'
           scan-ref: 'target/'
           ignore-unfixed: true
-          format: 'table'
+          format: 'jason'
           output: 'trivy-fs-report.json'
           #exit-code: '1'  # This fails the build if a CRITICAL issue is found
           severity: 'CRITICAL'
@@ -77,19 +77,18 @@ jobs:
           echo "Created AMI: $AMI_ID"
       
       # trivy ami scan
-      - name: Trivy AMI Scan (OS + Full Image)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: 'ami:${{ steps.build-image.outputs.ami_id }}'
-          scan-type: 'image'
-          severity: 'CRITICAL'
-          format: 'table'
-          output: 'trivy-ami-report.json'
-         # exit-code: '1'
+      - name: Install Trivy CLI
+        uses: aquasecurity/setup-trivy@v0.2.0 # Just installs the tool, no wrapper logic
+
+      - name: Trivy VM Scan
         env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_REGION: us-east-1
+          AMI_ID: ${{ steps.build-image.outputs.ami_id }}
+        run: |
+          # The 'vm' command scans AMI/EBS snapshots directly
+          trivy vm --severity CRITICAL,HIGH \
+                   --format table \
+                   --output trivy-ami-report.txt \
+                   ami:$AMI_ID
 
 
       # 6. Update ASG (The Zero Downtime Deployment)
@@ -128,7 +127,7 @@ jobs:
           name: security-audit-reports
           path: |
             trivy-fs-report.json
-            trivy-ami-report.json
+            trivy-ami-report.txt
           retention-days: 30
     
       
